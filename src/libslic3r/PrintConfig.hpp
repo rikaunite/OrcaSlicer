@@ -909,6 +909,7 @@ PRINT_CONFIG_CLASS_DEFINE(
     ((ConfigOptionFloat,               brim_ears_max_angle))
     ((ConfigOptionFloat,               skirt_start_angle))
     ((ConfigOptionBool,                bridge_no_support))
+    ((ConfigOptionBool,                support_floating_object_has_first_layer))
     ((ConfigOptionFloat,               elefant_foot_compensation))
     ((ConfigOptionInt,                 elefant_foot_compensation_layers))
     ((ConfigOptionPercent,             elefant_foot_layers_density))
