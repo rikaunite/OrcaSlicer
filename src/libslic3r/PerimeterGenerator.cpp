@@ -2028,7 +2028,7 @@ void PerimeterGenerator::process_classic()
         int sparse_infill_density = this->config->sparse_infill_density.value;
         if (this->config->alternate_extra_wall && this->layer_id % 2 == 1 && !m_spiral_vase && sparse_infill_density > 0) // add alternating extra wall
             loop_number++;
-        if (this->layer_id == object_config->raft_layers && this->config->only_one_wall_first_layer)
+        if ((this->layer_id == object_config->raft_layers || (object_config->support_floating_object_has_first_layer && this->lower_slices != nullptr && this->lower_slices->empty())) && this->config->only_one_wall_first_layer)
             loop_number = 0;
         // Set the topmost layer to be one wall
         if (loop_number > 0 && config->only_one_wall_top && this->upper_slices == nullptr)
@@ -2444,7 +2444,7 @@ void PerimeterGenerator::process_classic()
         coord_t infill_peri_overlap = 0;
         coord_t top_infill_peri_overlap = 0;
         if (inset > 0) {
-            if(this->layer_id == 0 || this->upper_slices == nullptr){
+            if(this->layer_id == 0 || this->upper_slices == nullptr || (object_config->support_floating_object_has_first_layer && this->lower_slices != nullptr && this->lower_slices->empty())){
                 infill_peri_overlap = coord_t(scale_(this->config->top_bottom_infill_wall_overlap.get_abs_value(unscale<double>(inset + solid_infill_spacing / 2))));
             }else{
                 infill_peri_overlap = coord_t(scale_(this->config->infill_wall_overlap.get_abs_value(unscale<double>(inset + solid_infill_spacing / 2))));
@@ -2945,7 +2945,7 @@ void PerimeterGenerator::process_arachne()
             loop_number++;
 
         // Set the bottommost layer to be one wall
-        const bool is_bottom_layer = (this->layer_id == object_config->raft_layers) ? true : false;
+        const bool is_bottom_layer = (this->layer_id == object_config->raft_layers || (object_config->support_floating_object_has_first_layer && this->lower_slices != nullptr && this->lower_slices->empty())) ? true : false;
         if (is_bottom_layer && this->config->only_one_wall_first_layer)
             loop_number = 0;
 

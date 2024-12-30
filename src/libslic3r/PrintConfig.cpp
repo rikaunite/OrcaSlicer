@@ -1463,6 +1463,14 @@ void PrintConfigDef::init_fff_params()
     def->mode = comAdvanced;
     def->set_default_value(new ConfigOptionBool(false));
 
+    def = this->add("support_floating_object_has_first_layer", coBool);
+    def->label = L("Floating object has first layer");
+    def->category = L("Support");
+    def->tooltip = L("If enabled, floating object that contact with only support interface, will has first layer and use first layer settings. "
+                     "Useful for stack printing with multi-material support.");
+    def->mode = comAdvanced;
+    def->set_default_value(new ConfigOptionBool(false));
+
     def = this->add("thick_bridges", coBool);
     def->label = L("Thick external bridges");
     def->category = L("Quality");
