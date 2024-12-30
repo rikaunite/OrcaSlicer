@@ -1305,6 +1305,7 @@ static std::vector<std::string> s_Preset_print_options{
     "outer_wall_filament_id",
     "inner_wall_filament_id",
     "support_bottom_z_distance",
+    "support_floating_object_has_first_layer",
     "sparse_infill_filament_id",
     "internal_solid_filament_id",
     "top_surface_filament_id",
