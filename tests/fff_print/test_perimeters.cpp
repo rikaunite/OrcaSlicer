@@ -276,6 +276,92 @@ TEST_CASE("Only one wall on the first layer needs a bottom shell", "[Perimeters]
     CHECK_THAT(one_wall_no_shell, Catch::Matchers::WithinAbs(plain_no_shell, 1.0));
 }
 
+// A 20x20x2 cube on the bed and a second 20x20x2 cube starting at z=4. The gap leaves empty
+// object layers, so the upper cube's first layer is the case support_floating_object_has_first_layer
+// treats as a first layer. Off, that layer keeps a normal wall count. On, and only when a bottom
+// shell exists, it is thinned the same way the bed's first layer is. A supported layer in the base
+// is left alone either way.
+TEST_CASE("Floating object can use first-layer walls", "[Perimeters]")
+{
+    const char *wall_generator = GENERATE("classic", "arachne");
+    CAPTURE(wall_generator);
+    CHECK_FALSE(DynamicPrintConfig::full_print_config().opt_bool("support_floating_object_has_first_layer"));
+
+    auto slice_stack = [wall_generator](bool floating_first_layer, bool only_one_wall_first_layer, int bottom_shell_layers) {
+        DynamicPrintConfig config = base_config(wall_generator);
+        config.set_deserialize_strict({
+            { "support_floating_object_has_first_layer", floating_first_layer },
+            { "only_one_wall_first_layer",               only_one_wall_first_layer },
+            { "bottom_shell_layers",                     bottom_shell_layers },
+            { "elefant_foot_compensation",               0.0 },
+            { "enable_support",                          false },
+            { "raft_layers",                             0 },
+        });
+
+        Model model;
+        Print print;
+        ModelObject *object = model.add_object();
+        object->name = "stacked_cubes";
+        object->add_volume(make_cube(20., 20., 2.), ModelVolumeType::MODEL_PART, false);
+        TriangleMesh upper = make_cube(20., 20., 2.);
+        upper.translate(0.f, 0.f, 4.f);
+        object->add_volume(std::move(upper), ModelVolumeType::MODEL_PART, false);
+        object->add_instance();
+        object->ensure_on_bed();
+        print.auto_assign_extruders(object);
+        print.apply(model, config);
+        print.validate();
+        print.set_status_silent();
+        print.process();
+
+        REQUIRE_FALSE(print.objects().empty());
+        struct Lengths {
+            double bed       = 0.;
+            double supported = 0.;
+            double floating  = 0.;
+            double floating_z = 0.;
+        } lengths;
+        const Layer *prev = nullptr;
+        bool found_floating = false;
+        for (const Layer *layer : print.objects().front()->layers()) {
+            if (std::abs(layer->print_z - first_layer_z) < 1e-4)
+                lengths.bed = perimeter_length_at(print, layer->print_z);
+            if (std::abs(layer->print_z - 1.0) < 1e-4)
+                lengths.supported = perimeter_length_at(print, layer->print_z);
+            if (!found_floating && prev != nullptr && prev->lslices.empty() && !layer->lslices.empty()) {
+                lengths.floating   = perimeter_length_at(print, layer->print_z);
+                lengths.floating_z = layer->print_z;
+                found_floating     = true;
+            }
+            prev = layer;
+        }
+        REQUIRE(found_floating);
+        REQUIRE(lengths.floating_z > 3.);
+        return lengths;
+    };
+
+    const auto plain              = slice_stack(false, true,  3);
+    const auto floating_one_wall  = slice_stack(true,  true,  3);
+    const auto floating_all_walls = slice_stack(true,  false, 3);
+    const auto plain_no_shell     = slice_stack(false, true,  0);
+    const auto floating_no_shell  = slice_stack(true,  true,  0);
+
+    REQUIRE(plain.bed > 0.);
+    REQUIRE(plain.supported > 0.);
+    REQUIRE(plain.floating > 0.);
+    // Three walls on the floating section, one wall on the bed.
+    CHECK(plain.floating > plain.bed);
+    CHECK_THAT(plain.floating, Catch::Matchers::WithinAbs(plain.supported, 1.0));
+    // The option thins that floating section, and does not retouch the bed or a supported layer.
+    CHECK(floating_one_wall.floating < plain.floating * 0.6);
+    CHECK(floating_one_wall.floating > plain.floating * 0.2);
+    CHECK_THAT(floating_one_wall.bed, Catch::Matchers::WithinAbs(plain.bed, 1.0));
+    CHECK_THAT(floating_one_wall.supported, Catch::Matchers::WithinAbs(plain.supported, 1.0));
+    // Without the one-wall switch, and without a bottom shell, the option does not change the walls.
+    CHECK_THAT(floating_all_walls.floating, Catch::Matchers::WithinAbs(plain.supported, 1.0));
+    CHECK_THAT(floating_no_shell.floating, Catch::Matchers::WithinAbs(plain_no_shell.floating, 1.0));
+}
+
 namespace {
 
 // The last layer of the tab, whose top surface shares an island with the tube walls rising past it.
