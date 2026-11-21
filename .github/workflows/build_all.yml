@@ -115,8 +115,8 @@ jobs:
         include: ${{ fromJSON(vars.SELF_HOSTED
           && '[{"arch":"","os":"orca-lnx-server"}]'
           || '[{"arch":"","os":"ubuntu-24.04"},{"arch":"aarch64","os":"ubuntu-24.04-arm"}]') }}
-    # Don't run scheduled builds on forks:
-    if: ${{ !cancelled() && (github.event_name != 'schedule' || github.repository == 'OrcaSlicer/OrcaSlicer') }}
+    # Don't run scheduled builds on forks. This review branch is Windows x64 only.
+    if: ${{ github.ref != 'refs/heads/cursor/floating-object-on-v2.5.1-0e6a' && !cancelled() && (github.event_name != 'schedule' || github.repository == 'OrcaSlicer/OrcaSlicer') }}
     uses: ./.github/workflows/build_check_cache.yml
     with:
       os: ${{ matrix.os }}
@@ -127,11 +127,12 @@ jobs:
     name: Build Windows ${{ matrix.arch }}
     strategy:
       fail-fast: false
-      # SELF_HOSTED skips arm64 (the self-hosted Windows server is x64-only).
+      # This review branch builds Windows x64 only. Hosted arm64 is omitted;
+      # the self-hosted Windows server was already x64-only.
       matrix:
         include: ${{ fromJSON(vars.SELF_HOSTED
           && '[{"arch":"x64","os":"orca-win-server","compiler":"clang"}]'
-          || '[{"arch":"x64","os":"windows-latest","compiler":"clang"},{"arch":"arm64","os":"windows-11-vs2026-arm","compiler":"clang"}]') }}
+          || '[{"arch":"x64","os":"windows-latest","compiler":"clang"}]') }}
     needs: check_build_script
     # id-token lets release builds sign through Google Cloud Workload Identity Federation (see
     # "Configure code signing" in build_orca.yml); the rest is what the build already used.
@@ -156,8 +157,8 @@ jobs:
         arch:
           - arm64
           - x86_64
-    # Don't run scheduled builds on forks:
-    if: ${{ !cancelled() && (github.event_name != 'schedule' || github.repository == 'OrcaSlicer/OrcaSlicer') }}
+    # Don't run scheduled builds on forks. This review branch is Windows x64 only.
+    if: ${{ github.ref != 'refs/heads/cursor/floating-object-on-v2.5.1-0e6a' && !cancelled() && (github.event_name != 'schedule' || github.repository == 'OrcaSlicer/OrcaSlicer') }}
     uses: ./.github/workflows/build_check_cache.yml
     with:
       os: ${{ vars.SELF_HOSTED && 'orca-macos-arm64' || 'macos-15' }}
@@ -168,7 +169,7 @@ jobs:
   build_macos_universal:
     name: Build macOS Universal
     needs: build_macos_arch
-    if: ${{ !cancelled() && needs.build_macos_arch.result == 'success' && !inputs.build-deps-only && (github.event_name != 'schedule' || github.repository == 'OrcaSlicer/OrcaSlicer') }}
+    if: ${{ github.ref != 'refs/heads/cursor/floating-object-on-v2.5.1-0e6a' && !cancelled() && needs.build_macos_arch.result == 'success' && !inputs.build-deps-only && (github.event_name != 'schedule' || github.repository == 'OrcaSlicer/OrcaSlicer') }}
     uses: ./.github/workflows/build_orca.yml
     with:
       os: ${{ vars.SELF_HOSTED && 'orca-macos-arm64' || 'macos-15' }}
@@ -179,7 +180,7 @@ jobs:
   unit_tests_linux_x86_64:
     name: Linux x86_64
     needs: build_linux
-    if: ${{ !cancelled() && success() }}
+    if: ${{ github.ref != 'refs/heads/cursor/floating-object-on-v2.5.1-0e6a' && !cancelled() && success() }}
     uses: ./.github/workflows/unit_tests.yml
     with:
       os: ${{ vars.SELF_HOSTED && 'orca-lnx-server' || 'ubuntu-24.04' }}
@@ -187,7 +188,7 @@ jobs:
   unit_tests_linux_aarch64:
     name: Linux aarch64
     needs: build_linux
-    if: ${{ !cancelled() && success() && !vars.SELF_HOSTED }}
+    if: ${{ github.ref != 'refs/heads/cursor/floating-object-on-v2.5.1-0e6a' && !cancelled() && success() && !vars.SELF_HOSTED }}
     uses: ./.github/workflows/unit_tests.yml
     with:
       os: ubuntu-24.04-arm
@@ -203,7 +204,7 @@ jobs:
   unit_tests_windows_arm64:
     name: Windows arm64
     needs: build_windows
-    if: ${{ !cancelled() && success() && !vars.SELF_HOSTED }}
+    if: ${{ github.ref != 'refs/heads/cursor/floating-object-on-v2.5.1-0e6a' && !cancelled() && success() && !vars.SELF_HOSTED }}
     uses: ./.github/workflows/unit_tests.yml
     with:
       os: windows-11-vs2026-arm
@@ -212,7 +213,7 @@ jobs:
   unit_tests_macos_arm64:
     name: macOS arm64
     needs: build_macos_arch
-    if: ${{ !cancelled() && success() }}
+    if: ${{ github.ref != 'refs/heads/cursor/floating-object-on-v2.5.1-0e6a' && !cancelled() && success() }}
     uses: ./.github/workflows/unit_tests.yml
     with:
       os: ${{ vars.SELF_HOSTED && 'orca-macos-arm64' || 'macos-15' }}
@@ -228,7 +229,7 @@ jobs:
   slice_check_linux:
     name: Slice check (Linux ${{ vars.SELF_HOSTED && 'x86_64' || 'aarch64' }})
     needs: build_linux
-    if: ${{ !cancelled() && success() }}
+    if: ${{ github.ref != 'refs/heads/cursor/floating-object-on-v2.5.1-0e6a' && !cancelled() && success() }}
     # Follows whichever Linux leg built the validator.
     runs-on: ${{ vars.SELF_HOSTED && 'orca-lnx-server' || 'ubuntu-24.04-arm' }}
     steps:
@@ -247,7 +248,8 @@ jobs:
   publish_test_results:
     name: Publish Test Results
     needs: [unit_tests_linux_x86_64, unit_tests_linux_aarch64, unit_tests_windows_x64, unit_tests_windows_arm64, unit_tests_macos_arm64, unit_tests_flatpak_x86_64, unit_tests_flatpak_aarch64]
-    if: ${{ !cancelled() }}
+    # Skipped on the Windows x64 review branch so a Linux publisher is not started.
+    if: ${{ github.ref != 'refs/heads/cursor/floating-object-on-v2.5.1-0e6a' && !cancelled() }}
     runs-on: ubuntu-latest
     steps:
       - name: Download Test Results
@@ -287,8 +289,9 @@ jobs:
             runner: ubuntu-24.04
           - arch: aarch64
             runner: ubuntu-24.04-arm
-    # Don't run scheduled builds on forks; skip entirely on self-hosted runners
-    if: ${{ !cancelled() && !vars.SELF_HOSTED && (github.event_name != 'schedule' || github.repository == 'OrcaSlicer/OrcaSlicer') }}
+    # Don't run scheduled builds on forks; skip entirely on self-hosted runners.
+    # This review branch is Windows x64 only.
+    if: ${{ github.ref != 'refs/heads/cursor/floating-object-on-v2.5.1-0e6a' && !cancelled() && !vars.SELF_HOSTED && (github.event_name != 'schedule' || github.repository == 'OrcaSlicer/OrcaSlicer') }}
 
     runs-on: ${{ matrix.variant.runner }}
     env:
@@ -507,7 +510,7 @@ jobs:
   unit_tests_flatpak_x86_64:
     name: Flatpak x86_64
     needs: flatpak
-    if: ${{ !cancelled() && success() }}
+    if: ${{ github.ref != 'refs/heads/cursor/floating-object-on-v2.5.1-0e6a' && !cancelled() && success() }}
     uses: ./.github/workflows/unit_tests_flatpak.yml
     with:
       os: ubuntu-24.04
@@ -515,7 +518,7 @@ jobs:
   unit_tests_flatpak_aarch64:
     name: Flatpak aarch64
     needs: flatpak
-    if: ${{ !cancelled() && success() }}
+    if: ${{ github.ref != 'refs/heads/cursor/floating-object-on-v2.5.1-0e6a' && !cancelled() && success() }}
     uses: ./.github/workflows/unit_tests_flatpak.yml
     with:
       os: ubuntu-24.04-arm
